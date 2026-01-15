@@ -30,9 +30,14 @@ export interface PositionStatus {
 interface PositionState {
     isInRange: boolean;
     isStaked: boolean;
+    lastOutOfRangeAlertTime: number; // Timestamp of last out-of-range alert
+    lastUnstakedAlertTime: number;   // Timestamp of last unstaked alert
 }
 
 const previousStates = new Map<string, PositionState>();
+
+// Cooldown: 1 hour in milliseconds
+const ALERT_COOLDOWN_MS = 60 * 60 * 1000;
 
 export function isPositionInRange(
     position: Position,
@@ -91,7 +96,8 @@ export async function monitorPositions(): Promise<{
 export async function checkAndAlert(): Promise<PositionStatus[]> {
     console.log(`\n🔍 Checking positions at ${new Date().toLocaleTimeString()}...`);
 
-    const { statuses, clPositions } = await monitorPositions();
+    const { statuses } = await monitorPositions();
+    const currentTime = Date.now();
 
     if (statuses.length === 0) {
         console.log('   No concentrated liquidity positions found');
@@ -118,52 +124,42 @@ export async function checkAndAlert(): Promise<PositionStatus[]> {
         if (isNowInRange) inRangeCount++;
         else outOfRangeCount++;
 
+        // Initialize state if first time seeing this position
+        let lastOutOfRange = prevState?.lastOutOfRangeAlertTime || 0;
+        let lastUnstaked = prevState?.lastUnstakedAlertTime || 0;
+
         // ALERT LOGIC
 
-        // 1. Unstaked Check
-        // Alert if:
-        // - First time seeing position + It is Unstaked
-        // - OR Position WAS Staked + NOW Unstaked
-        const isUnstakedEvent = (!prevState && !isNowStaked) || (prevState && prevState.isStaked && !isNowStaked);
+        // 1. Unstaked Alert
+        if (!isNowStaked) {
+            const wasStaked = prevState?.isStaked ?? true; // Assume was staked if new
+            const isTransition = wasStaked === true;
+            const cooldownExpired = (currentTime - lastUnstaked) > ALERT_COOLDOWN_MS;
 
-        if (isUnstakedEvent) {
-            console.log(`   ⚠️ Alerting: Position #${status.positionId} is UNSTAKED`);
-            await sendUnstakedAlert(
-                status.poolSymbol,
-                status.positionId,
-                status.currentTick,
-                status.tickLower,
-                status.tickUpper
-            );
-        }
-
-        // 2. Range Check
-        if (prevState) {
-            // State change
-            if (prevState.isInRange !== isNowInRange) {
-                if (isNowInRange) {
-                    await sendBackInRangeAlert(
-                        status.poolSymbol,
-                        status.positionId,
-                        status.currentTick,
-                        status.tickLower,
-                        status.tickUpper,
-                        isNowStaked
-                    );
-                } else {
-                    await sendOutOfRangeAlert(
-                        status.poolSymbol,
-                        status.positionId,
-                        status.currentTick,
-                        status.tickLower,
-                        status.tickUpper,
-                        isNowStaked
-                    );
-                }
+            if (isTransition || cooldownExpired) {
+                console.log(`   📱 Alerting: Position #${status.positionId} is UNSTAKED`);
+                await sendUnstakedAlert(
+                    status.poolSymbol,
+                    status.positionId,
+                    status.currentTick,
+                    status.tickLower,
+                    status.tickUpper
+                );
+                lastUnstaked = currentTime;
             }
         } else {
-            // New position found
-            if (!isNowInRange) {
+            // Reset cooldown if it's staked now
+            lastUnstaked = 0;
+        }
+
+        // 2. Range Alert
+        if (!isNowInRange) {
+            const wasInRange = prevState?.isInRange ?? true; // Assume was in range if new
+            const isTransition = wasInRange === true;
+            const cooldownExpired = (currentTime - lastOutOfRange) > ALERT_COOLDOWN_MS;
+
+            if (isTransition || cooldownExpired) {
+                console.log(`   📱 Alerting: Position #${status.positionId} is OUT OF RANGE`);
                 await sendOutOfRangeAlert(
                     status.poolSymbol,
                     status.positionId,
@@ -172,13 +168,31 @@ export async function checkAndAlert(): Promise<PositionStatus[]> {
                     status.tickUpper,
                     isNowStaked
                 );
+                lastOutOfRange = currentTime;
             }
+        } else {
+            // BACK IN RANGE CHECK
+            if (prevState && !prevState.isInRange) {
+                console.log(`   📱 Alerting: Position #${status.positionId} is BACK IN RANGE`);
+                await sendBackInRangeAlert(
+                    status.poolSymbol,
+                    status.positionId,
+                    status.currentTick,
+                    status.tickLower,
+                    status.tickUpper,
+                    isNowStaked
+                );
+            }
+            // Reset cooldown if it's in range now
+            lastOutOfRange = 0;
         }
 
         // Update state
         previousStates.set(positionKey, {
             isInRange: isNowInRange,
-            isStaked: isNowStaked
+            isStaked: isNowStaked,
+            lastOutOfRangeAlertTime: lastOutOfRange,
+            lastUnstakedAlertTime: lastUnstaked
         });
     }
 
