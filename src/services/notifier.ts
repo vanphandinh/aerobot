@@ -5,12 +5,21 @@ import { config } from '../config';
 
 export type Priority = 'min' | 'low' | 'default' | 'high' | 'urgent';
 
+interface NtfyAction {
+    action: 'view' | 'broadcast' | 'http';
+    label: string;
+    url?: string;
+    clear?: boolean;
+}
+
 interface NtfyMessage {
     topic: string;
     title?: string;
     message: string;
     priority?: number;
     tags?: string[];
+    markdown?: boolean;
+    actions?: NtfyAction[];
 }
 
 const PRIORITY_MAP: Record<Priority, number> = {
@@ -25,10 +34,14 @@ export async function sendNotification(
     message: string,
     title?: string,
     priority: Priority = 'default',
-    tags: string[] = []
+    tags: string[] = [],
+    clickUrl?: string
 ): Promise<boolean> {
     try {
-        const url = `${config.ntfyServer}/${config.ntfyTopic}`;
+        // When sending JSON with a 'topic' field, we must POST to the root URL
+        // e.g. https://ntfy.sh
+        // If we POST to /topic, the body is interpreted as the message text.
+        const url = config.ntfyServer;
 
         const body: NtfyMessage = {
             topic: config.ntfyTopic,
@@ -36,6 +49,12 @@ export async function sendNotification(
             title,
             priority: PRIORITY_MAP[priority],
             tags,
+            markdown: true,
+            actions: clickUrl ? [{
+                action: 'view',
+                label: 'View on BaseScan',
+                url: clickUrl
+            }] : undefined
         };
 
         const response = await fetch(url, {
@@ -68,17 +87,17 @@ export async function sendOutOfRangeAlert(
     isStaked: boolean
 ): Promise<boolean> {
     const direction = currentTick < tickLower ? 'below' : 'above';
-    const stakeStatus = isStaked ? 'Staked' : 'Unstaked';
+    const stakeStatus = isStaked ? '✅ Staked' : '⚠️ Unstaked';
 
-    const title = `⚠️ Position Out of Range`;
+    // Markdown format
     const message =
-        `${poolSymbol} #${positionId}\n` +
-        `Status: ${stakeStatus}\n` +
-        `Current: ${currentTick}\n` +
-        `Range: [${tickLower}, ${tickUpper}]\n` +
-        `📉 Price moved ${direction} range!`;
+        `**${poolSymbol}** #${positionId}\n` +
+        `**Status:** ${stakeStatus}\n` +
+        `**Current:** \`${currentTick}\`\n` +
+        `**Range:** \`[${tickLower}, ${tickUpper}]\`\n` +
+        `📉 Price moved **${direction}** range!`;
 
-    return sendNotification(message, title, 'high', ['warning', 'chart_with_downwards_trend']);
+    return sendNotification(message, `⚠️ Position Out of Range`, 'high', ['warning', 'chart_with_downwards_trend']);
 }
 
 export async function sendBackInRangeAlert(
@@ -89,16 +108,15 @@ export async function sendBackInRangeAlert(
     tickUpper: number,
     isStaked: boolean
 ): Promise<boolean> {
-    const stakeStatus = isStaked ? 'Staked' : 'Unstaked';
-    const title = `✅ Position Back In Range`;
+    const stakeStatus = isStaked ? '✅ Staked' : '⚠️ Unstaked';
     const message =
-        `${poolSymbol} #${positionId}\n` +
-        `Status: ${stakeStatus}\n` +
-        `Current: ${currentTick}\n` +
-        `Range: [${tickLower}, ${tickUpper}]\n` +
+        `**${poolSymbol}** #${positionId}\n` +
+        `**Status:** ${stakeStatus}\n` +
+        `**Current:** \`${currentTick}\`\n` +
+        `**Range:** \`[${tickLower}, ${tickUpper}]\`\n` +
         `💰 Earning fees again!`;
 
-    return sendNotification(message, title, 'default', ['white_check_mark', 'chart_with_upwards_trend']);
+    return sendNotification(message, `✅ Position Back In Range`, 'default', ['white_check_mark', 'chart_with_upwards_trend']);
 }
 
 export async function sendUnstakedAlert(
@@ -108,15 +126,14 @@ export async function sendUnstakedAlert(
     tickLower: number,
     tickUpper: number
 ): Promise<boolean> {
-    const title = `⚠️ Position Unstaked!`;
     const message =
-        `${poolSymbol} #${positionId}\n` +
-        `Current: ${currentTick}\n` +
-        `Range: [${tickLower}, ${tickUpper}]\n` +
-        `ℹ️ This position is not staked in the gauge.\n` +
+        `**${poolSymbol}** #${positionId}\n` +
+        `**Current:** \`${currentTick}\`\n` +
+        `**Range:** \`[${tickLower}, ${tickUpper}]\`\n` +
+        `ℹ️ This position is **not staked**.\n` +
         `Stake it now to earn AERO emissions!`;
 
-    return sendNotification(message, title, 'high', ['money_with_wings', 'exclamation']);
+    return sendNotification(message, `⚠️ Position Unstaked!`, 'high', ['money_with_wings', 'exclamation']);
 }
 
 export async function sendStartupNotification(
@@ -127,17 +144,17 @@ export async function sendStartupNotification(
 ): Promise<boolean> {
     const title = `🚀 Aerodrome Monitor Started`;
     const message =
-        `Wallet: ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}\n` +
-        `Total positions: ${totalPositions}\n` +
-        `CL positions: ${clPositions}\n` +
-        `Out of range: ${outOfRangeCount}`;
+        `Wallet: \`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}\`\n` +
+        `Total positions: **${totalPositions}**\n` +
+        `CL positions: **${clPositions}**\n` +
+        `Out of range: **${outOfRangeCount}**`;
 
     return sendNotification(message, title, 'low', ['rocket']);
 }
 
 export async function sendTestNotification(): Promise<boolean> {
     return sendNotification(
-        'If you see this, notifications are working correctly!',
+        'If you see this, **Markdown notifications** are working correctly!',
         '🧪 Test Notification',
         'default',
         ['test_tube']
