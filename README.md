@@ -49,4 +49,30 @@ npm run dev        # Chạy với ts-node (development)
 npm run build      # Build TypeScript
 npm run start      # Chạy phiên bản production
 npm run test-notify # Test gửi notification
+npm run test-notify # Test gửi notification
 ```
+
+## Chạy với Docker 🐳
+
+Dự án hỗ trợ chạy trên Docker với cấu hình được mount từ bên ngoài.
+
+1. **Build và Chạy**:
+   ```bash
+   docker-compose up -d --build
+   ```
+   Lệnh này sẽ build image và chạy container ngầm (detached mode).
+
+2. **Xem Logs**:
+   ```bash
+   docker-compose logs -f
+   ```
+
+3. **Dừng container**:
+   ```bash
+   docker-compose down
+   ```
+
+**Lưu ý:**
+- File `.env` của bạn sẽ được mount vào trong container.
+- Nếu bạn thay đổi cấu hình trong `.env`, chỉ cần restart container: `docker-compose restart`.
+- Nếu bạn thay đổi Code, cần chạy lại lệnh Build (bước 1).
