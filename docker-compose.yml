@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  monitor:
+    build: .
+    container_name: aerodrome-monitor
+    restart: unless-stopped
+    volumes:
+      - ./.env:/app/.env
