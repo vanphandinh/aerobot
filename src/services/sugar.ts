@@ -99,7 +99,8 @@ export async function fetchPositions(account: string): Promise<Position[]> {
 
     const limit = 500;
     let maxPoolsToCheck = 25000; // Default fallback
-
+    
+    // Try to fetch actual pool count, fallback to default if it fails
     try {
         const countVal = await rateLimiter.execute(() => contract.count());
         maxPoolsToCheck = Number(countVal);
