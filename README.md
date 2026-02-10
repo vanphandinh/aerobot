@@ -1,78 +1,78 @@
 # Aerodrome Position Monitor
 
-Công cụ giám sát các vị thế thanh khoản tập trung (CL) trên Aerodrome và gửi cảnh báo khi position bị out of range.
+Monitor tool for concentrated liquidity (CL) positions on Aerodrome and send alerts when positions go out of range.
 
-## Cài đặt nhanh
+## Quick Setup
 
 ```bash
-# 1. Cài dependencies
+# 1. Install dependencies
 npm install
 
-# 2. Cấu hình
-# Chỉnh sửa file .env, thay đổi:
-#   - WALLET_ADDRESS: địa chỉ ví của bạn
-#   - NTFY_TOPIC: tên topic duy nhất
+# 2. Configure
+# Edit .env file and change:
+#   - WALLET_ADDRESS: your wallet address
+#   - NTFY_TOPIC: unique topic name
 
-# 3. Thiết lập nhận thông báo
-# - Cài app ntfy trên điện thoại (Android/iOS)
-# - Subscribe vào topic của bạn
+# 3. Setup notifications
+# - Install ntfy app on mobile (Android/iOS)
+# - Subscribe to your topic
 
-# 4. Test thông báo
+# 4. Test notifications
 npm run test-notify
 
-# 5. Chạy monitor
+# 5. Run monitor
 npm run dev
 ```
 
-## Cấu hình
+## Configuration
 
-Chỉnh sửa file `.env`:
+Edit `.env` file:
 
-| Biến | Mô tả |
-|------|-------|
-| `WALLET_ADDRESS` | Địa chỉ ví cần giám sát |
-| `BASE_RPC_URL` | RPC endpoint (đã cấu hình Alchemy) |
-| `NTFY_TOPIC` | Tên topic nhận thông báo (tạo tên duy nhất) |
-| `POLL_INTERVAL_MS` | Khoảng cách giữa các lần kiểm tra (ms) |
+| Variable | Description |
+|----------|-------------|
+| `WALLET_ADDRESS` | Wallet address to monitor |
+| `BASE_RPC_URL` | RPC endpoint (pre-configured with Alchemy) |
+| `NTFY_TOPIC` | Topic name for notifications (create unique name) |
+| `POLL_INTERVAL_MS` | Check interval (ms) |
 
-## Cách hoạt động
+## How It Works
 
-1. **Lấy positions**: Dùng Sugar contract để lấy tất cả CL positions của ví
-2. **Kiểm tra range**: So sánh `tick` hiện tại của pool với `tick_lower`/`tick_upper` của position
-3. **Gửi cảnh báo**: Nếu position out of range, gửi notification qua ntfy.sh
-4. **Theo dõi thay đổi**: Chỉ gửi alert khi trạng thái thay đổi (tránh spam)
+1. **Fetch positions**: Use Sugar contract to get all CL positions for wallet
+2. **Check range**: Compare current pool `tick` with position `tick_lower`/`tick_upper`
+3. **Send alerts**: If position out of range, send notification via ntfy.sh
+4. **Track changes**: Only send alert when status changes (avoid spam)
 
 ## Commands
 
 ```bash
-npm run dev        # Chạy với ts-node (development)
+npm run dev        # Run with ts-node (development)
 npm run build      # Build TypeScript
-npm run start      # Chạy phiên bản production
-npm run test-notify # Test gửi notification
-npm run test-notify # Test gửi notification
+npm run start      # Run production version
+npm run test-notify # Test notifications
+npm run test-notify # Test notifications
 ```
 
-## Chạy với Docker 🐳
+## Running with Docker 🐳
 
-Dự án hỗ trợ chạy trên Docker với cấu hình được mount từ bên ngoài.
+The project supports running on Docker with configuration mounted from outside.
 
-1. **Build và Chạy**:
+1. **Build and Run**:
    ```bash
    docker-compose up -d --build
    ```
-   Lệnh này sẽ build image và chạy container ngầm (detached mode).
+   This will build the image and run the container in detached mode.
 
-2. **Xem Logs**:
+2. **View Logs**:
    ```bash
    docker-compose logs -f
    ```
 
-3. **Dừng container**:
+3. **Stop container**:
    ```bash
    docker-compose down
    ```
 
-**Lưu ý:**
-- File `.env` của bạn sẽ được mount vào trong container.
-- Nếu bạn thay đổi cấu hình trong `.env`, chỉ cần restart container: `docker-compose restart`.
-- Nếu bạn thay đổi Code, cần chạy lại lệnh Build (bước 1).
+**Note:**
+- Your `.env` file will be mounted inside the container.
+- If you change configuration in `.env`, just restart the container: `docker-compose restart`.
+- If you change code, you need to run the build command again (step 1).

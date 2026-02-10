@@ -8,10 +8,12 @@ import { Cache } from '../utils/cache';
 import { getRateLimiter } from '../utils/rate-limiter';
 import { config } from '../config';
 import { batchProvider, BatchCall } from '../utils/batch-provider';
+import { getRpcManager } from './rpc-manager';
 
 // Pool data cache
 const poolCache = new Cache<LpPool>(config.cacheTtlMs);
 const rateLimiter = getRateLimiter(config.minRpcDelayMs);
+const rpcManager = getRpcManager();
 
 let provider: JsonRpcProvider | null = null;
 let lpSugarContract: Contract | null = null;
@@ -32,9 +34,15 @@ const ERC20_ABI = [
 
 function getProvider(): JsonRpcProvider {
     if (!provider) {
-        provider = new JsonRpcProvider(config.rpcUrl);
+        const currentRpc = rpcManager.getCurrentRpc();
+        provider = new JsonRpcProvider(currentRpc);
     }
     return provider;
+}
+
+function resetProvider(): void {
+    provider = null;
+    lpSugarContract = null;
 }
 
 function getLpSugarContract(): Contract {
@@ -140,6 +148,43 @@ export async function fetchPositions(account: string): Promise<Position[]> {
 
     } catch (e: any) {
         console.error(`   ❌ Error executing batch:`, e);
+        
+        // Detect if RPC error and try new RPC
+        const errorMessage = e?.message?.toLowerCase() || '';
+        if (errorMessage.includes('network') || 
+            errorMessage.includes('timeout') || 
+            errorMessage.includes('econnrefused') ||
+            errorMessage.includes('enotfound')) {
+            
+            console.log(`   🔄 RPC error detected, attempting to switch RPC...`);
+            const currentRpc = rpcManager.getCurrentRpc();
+            
+            try {
+                await rpcManager.handleRpcError(currentRpc);
+                resetProvider();
+                // Retry once more with new RPC
+                console.log(`   🔄 Retrying with new RPC...`);
+                const contract = getLpSugarContract();
+                
+                try {
+                    const results = await batchProvider.execute(calls);
+                    for (const res of results) {
+                        if (res.success && res.data && res.data.length > 0) {
+                            const batch = res.data[0];
+                            if (Array.isArray(batch)) {
+                                for (const pos of batch) {
+                                    processPosition(pos, allPositions);
+                                }
+                            }
+                        }
+                    }
+                } catch (retryError) {
+                    console.error(`   ❌ Retry also failed:`, retryError);
+                }
+            } catch (switchError) {
+                console.error(`   ❌ Failed to switch RPC:`, switchError);
+            }
+        }
     }
 
     console.log(`   Found ${allPositions.length} raw positions. Deduplicating...`);
