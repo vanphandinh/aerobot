@@ -49,28 +49,6 @@ async function startMonitoring(): Promise<void> {
     }, config.pollIntervalMs);
 }
 
-async function waitForRpcManagerReady(): Promise<void> {
-    return new Promise((resolve) => {
-        // Check if already initialized
-        if (rpcManager.getCurrentRpc()) {
-            resolve();
-            return;
-        }
-        
-        // Wait for initialized event
-        rpcManager.once('initialized', () => {
-            console.log('✅ RPC Manager ready, proceeding with monitoring...');
-            resolve();
-        });
-        
-        // Also handle fallback initialization
-        rpcManager.once('initialized-fallback', () => {
-            console.log('✅ RPC Manager initialized with fallback, proceeding with monitoring...');
-            resolve();
-        });
-    });
-}
-
 function setupGracefulShutdown(): void {
     const shutdown = async () => {
         if (isShuttingDown) return;
@@ -117,9 +95,6 @@ async function main(): Promise<void> {
         rpcManager.on('rpc-refreshed', (data: any) => {
             console.log(`✅ RPC refreshed: ${data.count} address(es) found`);
         });
-        
-        // Wait for RPC Manager to be fully ready before starting monitoring
-        await waitForRpcManagerReady();
         
         await runInitialCheck();
         await startMonitoring();
