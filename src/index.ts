@@ -4,11 +4,9 @@
 import { config } from './config';
 import { checkAndAlert, countOutOfRange, monitorPositions } from './services/monitor';
 import { sendStartupNotification } from './services/notifier';
-import { getRpcManager } from './services/rpc-manager';
 
 let isShuttingDown = false;
 let monitoringInterval: NodeJS.Timeout | null = null;
-const rpcManager = getRpcManager();
 
 async function runInitialCheck(): Promise<void> {
     console.log('🚀 Aerodrome Position Monitor');
@@ -81,21 +79,6 @@ async function main(): Promise<void> {
         }
 
         setupGracefulShutdown();
-        
-        // Initialize RPC Manager - automatically fetch RPC on startup
-        console.log('\n');
-        await rpcManager.initialize(config.rpcUrl);
-        console.log('\n');
-        
-        // Setup RPC Manager event listeners
-        rpcManager.on('rpc-switched', (data: any) => {
-            console.log(`✅ RPC switched to: ${data.newRpc}`);
-        });
-        
-        rpcManager.on('rpc-refreshed', (data: any) => {
-            console.log(`✅ RPC refreshed: ${data.count} address(es) found`);
-        });
-        
         await runInitialCheck();
         await startMonitoring();
     } catch (error) {
